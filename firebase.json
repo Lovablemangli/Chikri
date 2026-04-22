@@ -14,6 +14,7 @@
     ]
   },
   "firestore": {
+    "database": "ai-studio-5e3cdfb7-6f8c-4780-b78d-de65a683acb3",
     "rules": "firestore.rules"
   }
 }

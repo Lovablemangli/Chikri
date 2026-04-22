@@ -1441,8 +1441,10 @@ export default function App() {
   const handleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      addToast('Login failed', 'info');
+    } catch (error: any) {
+      console.error("Login Error:", error);
+      const errorMessage = error.message || 'Login failed';
+      addToast(`Login failed: ${errorMessage}`, 'info');
     }
   };
 

@@ -812,7 +812,7 @@ function DiscountBanner() {
             transition={{ delay: 0.2 }}
             className="text-slate-300 text-lg md:text-xl mb-10 leading-relaxed font-medium max-w-lg"
           >
-            Premium excellence delivered directly from our sustainable sources to your kitchen. Save up to <span className="text-white font-black underline decoration-primary underline-offset-8">40% OFF</span> this season.
+            Premium excellence delivered directly from our sustainable sources to your kitchen.
           </motion.p>
           <motion.div 
              initial={{ opacity: 0, y: 20 }}

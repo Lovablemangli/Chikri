@@ -1,0 +1,41 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'no1manglistore@gmail.com';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      allow read: if true; // Public read
+      allow create, update, delete: if isAdmin() && isValidId(productId);
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      allow create: if true; // Allow anyone to place an order (or maybe signed in users?)
+      // For this app, let's allow anyone to create an order since it's a simple store
+      // But only admin can read and manage them
+      allow read, update, delete: if isAdmin() && isValidId(orderId);
+    }
+  }
+}

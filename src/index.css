@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Instrument+Serif:italic&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Quicksand", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  
+  --color-primary: #2ECC71;
+  --color-primary-dark: #27AE60;
+  --color-secondary: #F39C12;
+  --color-background: #FFFFFF;
+  --color-surface: #F8F9FA;
+  
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  --shadow-elevated: 0 20px 40px -12px rgba(0, 0, 0, 0.1);
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-slate-800 antialiased selection:bg-primary/20 selection:text-primary;
+  }
+}
+
+@layer utilities {
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 2rem;
+  }
+
+  .category-pill {
+    @apply px-5 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-slate-200 bg-white hover:border-primary hover:text-primary flex items-center gap-2;
+  }
+
+  .category-pill.active {
+    @apply bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-105;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-soft;
+  }
+  
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}

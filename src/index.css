@@ -28,9 +28,7 @@
 
 @layer utilities {
   .product-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 2rem;
+    @apply grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5;
   }
 
   .category-pill {

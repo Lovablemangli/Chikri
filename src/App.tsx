@@ -857,9 +857,9 @@ function ProductCard({ product, onAddToCart, onQuickView }: ProductCardProps) {
     <motion.div 
       layout
       whileHover={{ y: -8 }}
-      className="bg-white rounded-[32px] p-5 border border-slate-100 hover:shadow-elevated transition-all duration-500 group relative"
+      className="bg-white rounded-[24px] md:rounded-[32px] p-3 md:p-5 border border-slate-100 hover:shadow-elevated transition-all duration-500 group relative"
     >
-      <div className="relative aspect-[4/5] rounded-[24px] overflow-hidden mb-5 bg-slate-50">
+      <div className="relative aspect-[4/5] rounded-[18px] md:rounded-[24px] overflow-hidden mb-3 md:mb-5 bg-slate-50">
         <img 
           src={product.image} 
           alt={product.name} 
@@ -903,18 +903,18 @@ function ProductCard({ product, onAddToCart, onQuickView }: ProductCardProps) {
             4.8
           </div>
         </div>
-        <h3 className="font-black text-slate-800 text-lg leading-tight group-hover:text-primary transition-colors">{product.name}</h3>
+        <h3 className="font-black text-slate-800 text-sm md:text-lg leading-tight group-hover:text-primary transition-colors line-clamp-2">{product.name}</h3>
         <div className="flex items-end justify-between mt-2 pt-4 border-t border-slate-50">
           <div className="flex flex-col">
-             <span className="text-2xl font-black text-slate-900">Rs.{product.price.toFixed(2)}</span>
-             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Per {product.unit}</span>
+             <span className="text-lg md:text-2xl font-black text-slate-900">Rs.{product.price.toFixed(2)}</span>
+             <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Per {product.unit}</span>
           </div>
           <button 
             onClick={() => onAddToCart(product)}
-            className="flex items-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-2xl hover:bg-primary transition-all font-bold text-xs group/btn active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-3 bg-slate-900 text-white rounded-xl md:rounded-2xl hover:bg-primary transition-all font-bold text-[10px] md:text-xs group/btn active:scale-95"
           >
             Add 
-            <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+            <ArrowRight size={12} className="group-hover/btn:translate-x-1 transition-transform md:w-[14px] md:h-[14px]" />
           </button>
         </div>
       </div>

@@ -3,7 +3,8 @@ import {
   ShoppingCart, Search, User, Menu, X, ChevronRight, Star, 
   Clock, MapPin, Plus, Minus, Trash2, Heart, Eye, CheckCircle2, 
   ArrowRight, Leaf, ShieldCheck, Truck, Sparkles, LogOut, LayoutDashboard,
-  Package, TrendingUp, History, Edit, Trash, PlusCircle
+  Package, TrendingUp, History, Edit, Trash, PlusCircle,
+  Instagram, Twitter, Facebook
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { SAMPLE_PRODUCTS, Product, Category, CATEGORIES } from './types';
@@ -35,6 +36,14 @@ interface FirestoreOrder {
   items: { productName: string, quantity: number, price: number }[];
   total: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
+  createdAt: any;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+}
+
+interface Subscriber {
+  id: string;
+  email: string;
   createdAt: any;
 }
 
@@ -211,6 +220,7 @@ function ProductForm({
 function AdminDashboard({ 
   orders, 
   products,
+  subscribers,
   onClose, 
   onUpdateStatus,
   onAddProduct,
@@ -219,13 +229,14 @@ function AdminDashboard({
 }: { 
   orders: FirestoreOrder[], 
   products: Product[],
+  subscribers: Subscriber[],
   onClose: () => void,
   onUpdateStatus: (id: string, status: FirestoreOrder['status']) => void,
   onAddProduct: (p: Omit<Product, 'id'>) => void,
   onUpdateProduct: (p: Product) => void,
   onDeleteProduct: (id: string) => void
 }) {
-  const [activeTab, setActiveTab] = useState<'orders' | 'products'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'subscribers'>('orders');
   const [orderFilter, setOrderFilter] = useState<FirestoreOrder['status'] | 'all'>('all');
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -283,10 +294,10 @@ function AdminDashboard({
             Order Management
           </button>
           <button 
-            onClick={() => setActiveTab('products')}
-            className={`px-4 md:px-8 py-2 md:py-2.5 rounded-lg md:rounded-xl font-black text-[10px] md:text-sm whitespace-nowrap transition-all ${activeTab === 'products' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            onClick={() => setActiveTab('subscribers')}
+            className={`px-4 md:px-8 py-2 md:py-2.5 rounded-lg md:rounded-xl font-black text-[10px] md:text-sm whitespace-nowrap transition-all ${activeTab === 'subscribers' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            Product Inventory
+            Subscribers
           </button>
         </div>
 
@@ -301,32 +312,41 @@ function AdminDashboard({
       <div className="flex-1 overflow-hidden flex flex-col p-8 gap-8 max-w-7xl mx-auto w-full">
         {activeTab === 'orders' ? (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-6">
-                <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center">
-                  <TrendingUp size={32} />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-white p-6 md:p-8 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-4 md:gap-6">
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center">
+                  <TrendingUp size={24} className="md:w-8 md:h-8" />
                 </div>
                 <div>
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
-                  <h3 className="text-3xl font-black text-slate-900">Rs.{stats.totalRevenue.toFixed(2)}</h3>
+                  <p className="text-[8px] md:text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Revenue</p>
+                  <h3 className="text-xl md:text-3xl font-black text-slate-900">Rs.{stats.totalRevenue.toFixed(2)}</h3>
                 </div>
               </div>
-              <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-6">
-                <div className="w-16 h-16 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center">
-                  <Package size={32} />
+              <div className="bg-white p-6 md:p-8 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-4 md:gap-6">
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center">
+                  <Package size={24} className="md:w-8 md:h-8" />
                 </div>
                 <div>
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total Orders</p>
-                  <h3 className="text-3xl font-black text-slate-900">{stats.orderCount}</h3>
+                  <p className="text-[8px] md:text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Orders</p>
+                  <h3 className="text-xl md:text-3xl font-black text-slate-900">{stats.orderCount}</h3>
                 </div>
               </div>
-              <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-6">
-                <div className="w-16 h-16 bg-orange-500/10 text-orange-500 rounded-2xl flex items-center justify-center">
-                  <Clock size={32} />
+              <div className="bg-white p-6 md:p-8 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-4 md:gap-6">
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-orange-500/10 text-orange-500 rounded-2xl flex items-center justify-center">
+                  <Clock size={24} className="md:w-8 md:h-8" />
                 </div>
                 <div>
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Pending Orders</p>
-                  <h3 className="text-3xl font-black text-slate-900">{stats.pendingCount}</h3>
+                  <p className="text-[8px] md:text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Pending</p>
+                  <h3 className="text-xl md:text-3xl font-black text-slate-900">{stats.pendingCount}</h3>
+                </div>
+              </div>
+              <div className="bg-white p-6 md:p-8 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-4 md:gap-6">
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center">
+                  <User size={24} className="md:w-8 md:h-8" />
+                </div>
+                <div>
+                  <p className="text-[8px] md:text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Members</p>
+                  <h3 className="text-xl md:text-3xl font-black text-slate-900">{subscribers.length}</h3>
                 </div>
               </div>
             </div>
@@ -427,7 +447,7 @@ function AdminDashboard({
               </div>
             </div>
           </>
-        ) : (
+        ) : activeTab === 'products' ? (
           <div className="bg-white flex-1 rounded-[40px] border border-slate-100 shadow-sm flex flex-col overflow-hidden">
             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
@@ -484,6 +504,36 @@ function AdminDashboard({
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white flex-1 rounded-[40px] border border-slate-100 shadow-sm flex flex-col overflow-hidden">
+            <div className="p-8 border-b border-slate-100 bg-slate-50/50">
+              <h3 className="text-xl font-black text-slate-900">Green Club Members</h3>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{subscribers.length} total subscribers</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 hide-scrollbar">
+              {subscribers.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
+                   <User size={64} className="mb-6 text-slate-200" />
+                   <h4 className="text-xl font-black text-slate-400">No members yet.</h4>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                   {subscribers.map(sub => (
+                     <div key={sub.id} className="bg-slate-50/50 p-6 rounded-[32px] border border-slate-100 flex items-center gap-4">
+                        <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center font-black">
+                           {sub.email.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                           <p className="font-black text-slate-900 truncate">{sub.email}</p>
+                           <p className="text-[10px] font-bold text-slate-400">Joined: {sub.createdAt.toDate().toLocaleDateString()}</p>
+                        </div>
+                     </div>
+                   ))}
                 </div>
               )}
             </div>
@@ -1158,15 +1208,26 @@ function CheckoutForm({ isOpen, onClose, onSubmit, total }: { isOpen: boolean, o
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-500 uppercase ml-1">Payment Method</label>
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <button 
                     type="button"
-                    className="flex items-center gap-2 p-3 border border-primary bg-primary/5 text-primary rounded-xl transition-all"
+                    onClick={() => setFormData({...formData, payment: 'online'})}
+                    className={`flex items-center gap-2 p-3 border rounded-xl transition-all ${formData.payment === 'online' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}
                   >
-                    <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
-                      <div className="w-2 h-2 bg-primary rounded-full" />
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.payment === 'online' ? 'border-primary' : 'border-slate-300'}`}>
+                      {formData.payment === 'online' && <div className="w-2 h-2 bg-primary rounded-full" />}
                     </div>
-                    <span className="text-xs font-bold uppercase">Online Payment (Credit/Debit/UPI)</span>
+                    <span className="text-[10px] font-black uppercase">Online Pay</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setFormData({...formData, payment: 'cod'})}
+                    className={`flex items-center gap-2 p-3 border rounded-xl transition-all ${formData.payment === 'cod' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.payment === 'cod' ? 'border-primary' : 'border-slate-300'}`}>
+                      {formData.payment === 'cod' && <div className="w-2 h-2 bg-primary rounded-full" />}
+                    </div>
+                    <span className="text-[10px] font-black uppercase">COD</span>
                   </button>
                 </div>
               </div>
@@ -1238,16 +1299,23 @@ function CheckoutSuccess({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   );
 }
 
-function Footer() {
+function Footer({ onSubscribe }: { onSubscribe: (email: string) => Promise<void> }) {
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      setIsSubscribed(true);
-      setEmail('');
-      setTimeout(() => setIsSubscribed(false), 5000);
+    if (email && !isSubmitting) {
+      setIsSubmitting(true);
+      try {
+        await onSubscribe(email);
+        setIsSubscribed(true);
+        setEmail('');
+        setTimeout(() => setIsSubscribed(false), 5000);
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -1255,45 +1323,26 @@ function Footer() {
     <footer id="about" className="bg-slate-900 pt-24 pb-12 px-6 md:px-8 text-white rounded-t-[64px] mt-24">
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 mb-20">
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-6">
             <a href="/" className="text-3xl font-black tracking-tight flex items-center gap-2 mb-8 text-white">
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center scale-90">
                 <Leaf size={24} />
               </div>
               <span>chikri<span className="text-primary tracking-tighter">.</span>store</span>
             </a>
-            <p className="text-slate-400 font-medium leading-relaxed mb-10 max-w-sm">
-              We're on a mission to bring the freshest, most sustainable produce directly to your doorstep. Supporting local sources, one bag at a time.
-            </p>
             <div className="flex items-center gap-4">
-              {['Instagram', 'Twitter', 'Facebook'].map(social => (
-                <a key={social} href="#" className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center font-black text-xs hover:bg-primary hover:text-white transition-all">
-                  {social.substring(0, 2).toUpperCase()}
-                </a>
-              ))}
+              <a href="#" className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400" title="Instagram">
+                <Instagram size={20} />
+              </a>
+              <a href="#" className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400" title="Twitter">
+                <Twitter size={20} />
+              </a>
+              <a href="#" className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400" title="Facebook">
+                <Facebook size={20} />
+              </a>
             </div>
           </div>
-
-          <div className="lg:col-span-4 grid grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <h4 className="text-xs font-black uppercase tracking-[0.2em] text-primary">Explore</h4>
-              <ul className="space-y-4 font-bold text-slate-400">
-                <li><a href="#catalog" className="hover:text-white transition-colors">Premium Fruits</a></li>
-                <li><a href="#catalog" className="hover:text-white transition-colors">Fresh Vegetables</a></li>
-                <li><a href="#offers" className="hover:text-white transition-colors">Daily Deals</a></li>
-              </ul>
-            </div>
-            <div className="space-y-6">
-              <h4 className="text-xs font-black uppercase tracking-[0.2em] text-primary">Company</h4>
-              <ul className="space-y-4 font-bold text-slate-400">
-                <li><a href="#about" className="hover:text-white transition-colors">Our Story</a></li>
-                <li><a href="#about" className="hover:text-white transition-colors">Sustainability</a></li>
-                <li><a href="#about" className="hover:text-white transition-colors">Contact Us</a></li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="lg:col-span-4 bg-white/5 p-10 rounded-[40px] border border-white/5">
+          <div className="lg:col-span-6 bg-white/5 p-10 rounded-[40px] border border-white/5">
             <h4 className="text-xl font-black mb-4">Join the Green Club</h4>
             <p className="text-slate-400 font-medium mb-8 text-sm">Get exclusive offers and health tips weekly.</p>
             
@@ -1327,7 +1376,7 @@ function Footer() {
         </div>
 
         <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
-          <p className="text-slate-500 font-bold text-sm">© 2026 chikri.store — Made with 💚 for Freshness Lovers.</p>
+          <p className="text-slate-500 font-bold text-sm">© 2026 chikri.store</p>
           <div className="flex items-center gap-8 text-slate-500 font-bold text-xs uppercase tracking-widest">
             <a href="#" className="hover:text-white">Privacy</a>
             <a href="#" className="hover:text-white">Terms</a>
@@ -1356,6 +1405,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
 
   const addToast = useCallback((message: string, type: 'success' | 'info' = 'success') => {
@@ -1437,6 +1487,45 @@ export default function App() {
   useEffect(() => {
     if (isAdmin) fetchOrders();
   }, [isAdmin, fetchOrders]);
+
+  // Fetch Subscribers for Admin
+  const fetchSubscribers = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const q = query(collection(db, 'subscribers'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const subData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Subscriber[];
+      setSubscribers(subData);
+    } catch (error) {
+      console.error("Error fetching subscribers:", error);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) fetchSubscribers();
+  }, [isAdmin, fetchSubscribers]);
+
+  const handleSubscribeNewsletter = async (email: string) => {
+    try {
+      const q = query(collection(db, 'subscribers'));
+      const querySnapshot = await getDocs(q);
+      const exists = querySnapshot.docs.some(doc => doc.data().email === email);
+      
+      if (!exists) {
+        await addDoc(collection(db, 'subscribers'), {
+          email,
+          createdAt: Timestamp.now()
+        });
+        if (isAdmin) fetchSubscribers();
+      }
+    } catch (error) {
+      console.error("Subscription error:", error);
+      throw error;
+    }
+  };
 
   const handleLogin = async () => {
     try {
@@ -1554,6 +1643,52 @@ export default function App() {
       addToast(`Order exceeds maximum limit of Rs. ${MAX_ORDER_LIMIT}`, 'info');
       return;
     }
+
+    if (details.payment === 'online') {
+      try {
+        const response = await fetch('/api/create-razorpay-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: orderTotal })
+        });
+        
+        const razorpayOrder = await response.json();
+        
+        if (!razorpayOrder.id) throw new Error('Failed to create Razorpay order');
+
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+          name: "Chikri.Store",
+          description: "Purchase from Chikri.Store",
+          order_id: razorpayOrder.id,
+          handler: async function (response: any) {
+            await finalizeOrder(details, {
+              razorpayOrderId: razorpayOrder.id,
+              razorpayPaymentId: response.razorpay_payment_id
+            });
+          },
+          prefill: {
+            name: details.name,
+            email: details.email,
+            contact: details.phone
+          },
+          theme: { color: "#10b981" }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+      } catch (error) {
+        console.error("Payment error:", error);
+        addToast("Payment initialization failed. Please try again.", "info");
+      }
+    } else {
+      await finalizeOrder(details);
+    }
+  };
+
+  const finalizeOrder = async (details: any, paymentInfo?: { razorpayOrderId: string, razorpayPaymentId: string }) => {
     const orderData = {
       customerName: details.name,
       phone: details.phone,
@@ -1567,7 +1702,8 @@ export default function App() {
       })),
       total: orderTotal,
       status: 'pending',
-      createdAt: Timestamp.now()
+      createdAt: Timestamp.now(),
+      ...paymentInfo
     };
 
     try {
@@ -1575,7 +1711,7 @@ export default function App() {
       setIsCheckoutFormOpen(false);
       setIsCheckoutSuccess(true);
       setCart([]);
-      if (isAdmin) fetchOrders(); // Update admin view if admin places order
+      if (isAdmin) fetchOrders();
     } catch (error) {
       console.error("Order failed:", error);
       addToast('Order processing failed. Please try again.', 'info');
@@ -1601,6 +1737,7 @@ export default function App() {
         <AdminDashboard 
           orders={orders} 
           products={products}
+          subscribers={subscribers}
           onClose={() => setIsAdminDashboardOpen(false)} 
           onUpdateStatus={updateOrderStatus} 
           onAddProduct={handleAddProduct}
@@ -1693,7 +1830,7 @@ export default function App() {
         )}
       </main>
 
-      <Footer />
+      <Footer onSubscribe={handleSubscribeNewsletter} />
     </div>
   );
 }

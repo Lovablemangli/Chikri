@@ -11,6 +11,16 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Boot-up check for keys
+console.log("-----------------------------------------");
+console.log("RAZORPAY CONFIG CHECK:");
+console.log("Key ID Present:", !!process.env.VITE_RAZORPAY_KEY_ID);
+console.log("Key Secret Present:", !!process.env.RAZORPAY_KEY_SECRET);
+if (process.env.VITE_RAZORPAY_KEY_ID) {
+  console.log("Key ID starts with:", process.env.VITE_RAZORPAY_KEY_ID.substring(0, 7));
+}
+console.log("-----------------------------------------");
+
 // Initialize Razorpay
 let razorpay: Razorpay | null = null;
 
@@ -71,15 +81,22 @@ app.post("/api/create-razorpay-order", async (req, res) => {
     };
 
     const order = await rzp.orders.create(options);
+    console.log("Razorpay Order Created:", order.id);
     res.json({
       ...order,
       key_id: process.env.VITE_RAZORPAY_KEY_ID
     });
   } catch (error: any) {
-    console.error("Razorpay order creation error:", error);
-    res.status(500).json({ 
+    console.error("FULL RAZORPAY ERROR:", {
+      message: error.message,
+      description: error.description,
+      metadata: error.metadata,
+      code: error.code,
+      source: error.source
+    });
+    res.status(error.statusCode || 500).json({ 
       error: "Failed to create Razorpay order",
-      details: error.message || "Unknown error"
+      details: error.description || error.message || "Unknown error from Razorpay"
     });
   }
 });

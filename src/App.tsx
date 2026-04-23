@@ -1641,12 +1641,17 @@ export default function App() {
     setIsCheckoutFormOpen(true);
   };
 
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+
   const handleFinalSubmit = async (details: any) => {
+    if (isProcessingCheckout) return;
+
     if (cartSubtotal > MAX_ORDER_LIMIT) {
       addToast(`Order exceeds maximum limit of Rs. ${MAX_ORDER_LIMIT}`, 'info');
       return;
     }
 
+    setIsProcessingCheckout(true);
     try {
       const response = await fetch('/api/create-razorpay-order', {
         method: 'POST',
@@ -1659,6 +1664,7 @@ export default function App() {
       if (!response.ok) {
         console.error("Payment setup error:", razorpayOrder);
         addToast(razorpayOrder.details || razorpayOrder.error || "Payment setup failed", "info");
+        setIsProcessingCheckout(false);
         return;
       }
       
@@ -1678,6 +1684,13 @@ export default function App() {
             razorpayOrderId: razorpayOrder.id,
             razorpayPaymentId: response.razorpay_payment_id
           });
+          setIsProcessingCheckout(false);
+        },
+        modal: {
+          ondismiss: function() {
+            addToast("Payment window closed", "info");
+            setIsProcessingCheckout(false);
+          }
         },
         prefill: {
           name: details.name,
@@ -1706,9 +1719,10 @@ export default function App() {
 
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Payment error:", error);
-      addToast("Payment initialization failed. Please try again.", "info");
+      addToast(error.message || "Payment initialization failed. Please try again.", "info");
+      setIsProcessingCheckout(false);
     }
   };
 

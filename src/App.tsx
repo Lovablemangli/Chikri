@@ -1647,13 +1647,6 @@ export default function App() {
       return;
     }
 
-    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
-    if (!razorpayKey) {
-      console.error("Razorpay Key ID missing");
-      addToast("Online payments are currently unavailable. Please contact support.", "info");
-      return;
-    }
-
     try {
       const response = await fetch('/api/create-razorpay-order', {
         method: 'POST',
@@ -1669,7 +1662,7 @@ export default function App() {
       }
 
       const options = {
-        key: razorpayKey,
+        key: razorpayOrder.key_id, // Use the key returned from the server
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
         name: "Chikri.Store",

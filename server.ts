@@ -54,7 +54,10 @@ app.post("/api/create-razorpay-order", async (req, res) => {
     };
 
     const order = await rzp.orders.create(options);
-    res.json(order);
+    res.json({
+      ...order,
+      key_id: process.env.VITE_RAZORPAY_KEY_ID
+    });
   } catch (error) {
     console.error("Razorpay order creation error:", error);
     res.status(500).json({ error: "Failed to create Razorpay order" });

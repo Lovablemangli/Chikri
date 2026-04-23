@@ -1219,27 +1219,14 @@ function CheckoutForm({ isOpen, onClose, onSubmit, total, user }: { isOpen: bool
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-500 uppercase ml-1">Payment Method</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button 
-                    type="button"
-                    onClick={() => setFormData({...formData, payment: 'online'})}
-                    className={`flex items-center gap-2 p-3 border rounded-xl transition-all ${formData.payment === 'online' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}
-                  >
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.payment === 'online' ? 'border-primary' : 'border-slate-300'}`}>
-                      {formData.payment === 'online' && <div className="w-2 h-2 bg-primary rounded-full" />}
-                    </div>
-                    <span className="text-[10px] font-black uppercase">Online Pay</span>
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setFormData({...formData, payment: 'cod'})}
-                    className={`flex items-center gap-2 p-3 border rounded-xl transition-all ${formData.payment === 'cod' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}
-                  >
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.payment === 'cod' ? 'border-primary' : 'border-slate-300'}`}>
-                      {formData.payment === 'cod' && <div className="w-2 h-2 bg-primary rounded-full" />}
-                    </div>
-                    <span className="text-[10px] font-black uppercase">COD</span>
-                  </button>
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-3">
+                  <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-primary">Secure Online Payment</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Scanner, UPI & Cards Supported</p>
+                  </div>
                 </div>
               </div>
               
@@ -1263,10 +1250,10 @@ function CheckoutForm({ isOpen, onClose, onSubmit, total, user }: { isOpen: bool
   );
 }
 
-function CheckoutSuccess({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+function CheckoutSuccess({ type, onClose }: { type: false | 'online' | 'cod', onClose: () => void }) {
   return (
     <AnimatePresence>
-      {isOpen && (
+      {type && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
           <motion.div 
             initial={{ opacity: 0 }}
@@ -1295,7 +1282,7 @@ function CheckoutSuccess({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
             </div>
             <h3 className="text-3xl font-black text-slate-900 mb-4">Payment Successful!</h3>
             <p className="text-slate-500 mb-10 leading-relaxed font-bold">
-              Your order has been confirmed. Expect your delivery by soon!
+              Your order has been confirmed and payment was received. Expect your delivery soon!
             </p>
             <button 
               onClick={onClose}
@@ -1407,7 +1394,7 @@ export default function App() {
   const [cart, setCart] = useState<{ product: Product, quantity: number }[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutFormOpen, setIsCheckoutFormOpen] = useState(false);
-  const [isCheckoutSuccess, setIsCheckoutSuccess] = useState(false);
+  const [isCheckoutSuccess, setIsCheckoutSuccess] = useState<false | 'online' | 'cod'>(false);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   
@@ -1660,47 +1647,70 @@ export default function App() {
       return;
     }
 
-    if (details.payment === 'online') {
-      try {
-        const response = await fetch('/api/create-razorpay-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: orderTotal })
-        });
-        
-        const razorpayOrder = await response.json();
-        
-        if (!razorpayOrder.id) throw new Error('Failed to create Razorpay order');
+    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+    if (!razorpayKey) {
+      console.error("Razorpay Key ID missing");
+      addToast("Online payments are currently unavailable. Please contact support.", "info");
+      return;
+    }
 
-        const options = {
-          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-          amount: razorpayOrder.amount,
-          currency: razorpayOrder.currency,
-          name: "Chikri.Store",
-          description: "Purchase from Chikri.Store",
-          order_id: razorpayOrder.id,
-          handler: async function (response: any) {
-            await finalizeOrder(details, {
-              razorpayOrderId: razorpayOrder.id,
-              razorpayPaymentId: response.razorpay_payment_id
-            });
-          },
-          prefill: {
-            name: details.name,
-            email: details.email,
-            contact: details.phone
-          },
-          theme: { color: "#10b981" }
-        };
-
-        const rzp = new (window as any).Razorpay(options);
-        rzp.open();
-      } catch (error) {
-        console.error("Payment error:", error);
-        addToast("Payment initialization failed. Please try again.", "info");
+    try {
+      const response = await fetch('/api/create-razorpay-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: orderTotal })
+      });
+      
+      const razorpayOrder = await response.json();
+      
+      if (!razorpayOrder.id) {
+        console.error("Server failed to create order:", razorpayOrder);
+        throw new Error('Failed to create Razorpay order');
       }
-    } else {
-      await finalizeOrder(details);
+
+      const options = {
+        key: razorpayKey,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: "Chikri.Store",
+        description: "Purchase from Chikri.Store",
+        order_id: razorpayOrder.id,
+        handler: async function (response: any) {
+          await finalizeOrder(details, {
+            razorpayOrderId: razorpayOrder.id,
+            razorpayPaymentId: response.razorpay_payment_id
+          });
+        },
+        prefill: {
+          name: details.name,
+          email: details.email,
+          contact: details.phone
+        },
+        theme: { color: "#10b981" },
+        // Enforce QR/UPI by default in modal if possible
+        config: {
+          display: {
+            blocks: {
+              banks: {
+                name: 'All Payment Methods',
+                instruments: [
+                  { method: 'upi' },
+                  { method: 'card' },
+                  { method: 'netbanking' }
+                ],
+              },
+            },
+            sequence: ['block.banks'],
+            preferences: { show_default_blocks: true },
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (error) {
+      console.error("Payment error:", error);
+      addToast("Payment initialization failed. Please try again.", "info");
     }
   };
 
@@ -1710,7 +1720,7 @@ export default function App() {
       phone: details.phone,
       email: details.email,
       address: details.address,
-      paymentMethod: details.payment,
+      paymentMethod: 'online',
       items: cart.map(item => ({
         productName: item.product.name,
         quantity: item.quantity,
@@ -1725,7 +1735,7 @@ export default function App() {
     try {
       await addDoc(collection(db, 'orders'), orderData);
       setIsCheckoutFormOpen(false);
-      setIsCheckoutSuccess(true);
+      setIsCheckoutSuccess(details.payment);
       setCart([]);
       if (isAdmin) fetchOrders();
     } catch (error) {
@@ -1778,7 +1788,7 @@ export default function App() {
         user={user}
       />
       <CheckoutSuccess 
-        isOpen={isCheckoutSuccess} 
+        type={isCheckoutSuccess} 
         onClose={() => setIsCheckoutSuccess(false)} 
       />
       <ProductQuickView 

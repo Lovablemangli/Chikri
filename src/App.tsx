@@ -1656,9 +1656,14 @@ export default function App() {
       
       const razorpayOrder = await response.json();
       
+      if (!response.ok) {
+        console.error("Payment setup error:", razorpayOrder);
+        addToast(razorpayOrder.details || razorpayOrder.error || "Payment setup failed", "info");
+        return;
+      }
+      
       if (!razorpayOrder.id) {
-        console.error("Server failed to create order:", razorpayOrder);
-        throw new Error('Failed to create Razorpay order');
+        throw new Error('No Order ID returned from server');
       }
 
       const options = {

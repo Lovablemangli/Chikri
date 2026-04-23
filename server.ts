@@ -37,16 +37,33 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// Debug keys (safe check)
+app.get("/api/debug-rzp", (req, res) => {
+  res.json({
+    hasKeyId: !!process.env.VITE_RAZORPAY_KEY_ID,
+    hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
+    keyIdPrefix: process.env.VITE_RAZORPAY_KEY_ID ? process.env.VITE_RAZORPAY_KEY_ID.substring(0, 7) : 'none',
+    envKeys: Object.keys(process.env).filter(k => k.includes('RAZORPAY'))
+  });
+});
+
 // Create Razorpay Order
 app.post("/api/create-razorpay-order", async (req, res) => {
-  const rzp = getRazorpay();
-  if (!rzp) {
-    return res.status(500).json({ error: "Razorpay keys not configured." });
-  }
-
-  const { amount, currency = "INR" } = req.body;
-
   try {
+    const rzp = getRazorpay();
+    if (!rzp) {
+      return res.status(500).json({ 
+        error: "Razorpay keys not configured on server.",
+        details: "VITE_RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET missing in environment."
+      });
+    }
+
+    const { amount, currency = "INR" } = req.body;
+    
+    if (!amount || isNaN(amount)) {
+      return res.status(400).json({ error: "Invalid amount provided." });
+    }
+
     const options = {
       amount: Math.round(amount * 100), // Razorpay expects amount in paise
       currency,
@@ -58,9 +75,12 @@ app.post("/api/create-razorpay-order", async (req, res) => {
       ...order,
       key_id: process.env.VITE_RAZORPAY_KEY_ID
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Razorpay order creation error:", error);
-    res.status(500).json({ error: "Failed to create Razorpay order" });
+    res.status(500).json({ 
+      error: "Failed to create Razorpay order",
+      details: error.message || "Unknown error"
+    });
   }
 });
 

@@ -1118,14 +1118,25 @@ function CartDrawer({ isOpen, onClose, cart, updateQuantity, removeFromCart, onC
   );
 }
 
-function CheckoutForm({ isOpen, onClose, onSubmit, total }: { isOpen: boolean, onClose: () => void, onSubmit: (details: any) => void, total: number }) {
+function CheckoutForm({ isOpen, onClose, onSubmit, total, user }: { isOpen: boolean, onClose: () => void, onSubmit: (details: any) => void, total: number, user: FirebaseUser | null }) {
   const [formData, setFormData] = useState({
-    name: '',
+    name: user?.displayName || '',
     phone: '',
-    email: '',
+    email: user?.email || '',
     address: '',
     payment: 'online'
   });
+
+  // Keep synced if user login state changes while form is open (though unlikely)
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || user.displayName || '',
+        email: prev.email || user.email || ''
+      }));
+    }
+  }, [user]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1634,6 +1645,11 @@ export default function App() {
   };
 
   const handleOpenCheckout = () => {
+    if (!user) {
+      addToast('Please login to continue checkout', 'info');
+      handleLogin();
+      return;
+    }
     setIsCartOpen(false);
     setIsCheckoutFormOpen(true);
   };
@@ -1759,6 +1775,7 @@ export default function App() {
         onClose={() => setIsCheckoutFormOpen(false)}
         onSubmit={handleFinalSubmit}
         total={orderTotal}
+        user={user}
       />
       <CheckoutSuccess 
         isOpen={isCheckoutSuccess} 

@@ -2,59 +2,85 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import Razorpay from "razorpay";
-import dotenv from "dotenv";
 
-dotenv.config();
+const app = express();
+const PORT = 3000;
 
-// Razorpay Instance Helper
-let razorpay: Razorpay | null = null;
-function getRazorpay() {
-  if (!razorpay) {
-    const keyId = process.env.VITE_RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (keyId && keySecret) {
-      razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
-    }
-  }
-  return razorpay;
-}
+app.use(express.json());
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+// Global Logger
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
-  app.use(express.json());
+// Boot-up Debugging
+console.log("-----------------------------------------");
+console.log("SERVER STARTING...");
+console.log("RAZORPAY_KEY_ID exists:", !!process.env.VITE_RAZORPAY_KEY_ID);
+console.log("RAZORPAY_KEY_SECRET exists:", !!process.env.RAZORPAY_KEY_SECRET);
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("-----------------------------------------");
 
-  // 1. Simple Health Check
-  app.get("/api/ping", (req, res) => res.json({ status: "alive" }));
-
-  // 2. Razorpay Order Creation
-  app.post("/api/create-razorpay-order", async (req, res) => {
-    const rzp = getRazorpay();
-    if (!rzp) {
-      return res.status(500).json({ error: "Razorpay keys not found in Store Secrets." });
-    }
-
-    try {
-      const { amount } = req.body;
-      const order = await rzp.orders.create({
-        amount: Math.round(amount * 100),
-        currency: "INR",
-        receipt: `receipt_${Date.now()}`
-      });
-      
-      // Send both order and key_id back
-      res.json({
-        ...order,
-        key_id: process.env.VITE_RAZORPAY_KEY_ID
-      });
-    } catch (error: any) {
-      console.error("Razorpay Error:", error);
-      res.status(500).json({ error: error.message || "Failed to create Razorpay order" });
+// 1. Health Route (non-api prefix to test)
+app.get("/healthz", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    timestamp: new Date().toISOString(),
+    keys: {
+      id: !!process.env.VITE_RAZORPAY_KEY_ID,
+      secret: !!process.env.RAZORPAY_KEY_SECRET
     }
   });
+});
 
-  // 3. Vite / Static Files
+// 2. Main Payment API
+app.post("/backend/create-order", async (req, res) => {
+  console.log("[PAYMENT] Create order request received");
+  
+  const keyId = process.env.VITE_RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (!keyId || !keySecret) {
+    console.error("[ERROR] Missing Razorpay keys");
+    return res.status(500).json({ 
+      error: "Razorpay credentials not found in environment.",
+      hint: "Make sure VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are set in Store Secrets."
+    });
+  }
+
+  try {
+    const { amount } = req.body;
+    if (!amount) {
+      return res.status(400).json({ error: "Amount is required" });
+    }
+
+    const RazorpayClass = (Razorpay as any).default || Razorpay;
+    const rzp = new RazorpayClass({ key_id: keyId, key_secret: keySecret });
+    const order = await rzp.orders.create({
+      amount: Math.round(Number(amount) * 100), // convert to paise
+      currency: "INR",
+      receipt: `order_rcpt_${Date.now()}`
+    });
+
+    console.log("[SUCCESS] Razorpay order created:", order.id);
+    res.json({ ...order, key_id: keyId });
+  } catch (err: any) {
+    console.error("[RZP ERROR]", err);
+    res.status(500).json({ 
+      error: "Razorpay order creation failed", 
+      details: err.message || "Unknown error" 
+    });
+  }
+});
+
+// 3. Fallback for /backend to ensure JSON response
+app.all("/backend/*", (req, res) => {
+  res.status(404).json({ error: "Backend route not found", path: req.path });
+});
+
+// 4. Vite / SPA Logic
+async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -62,18 +88,19 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    // Production: serve built files
+    const distPath = path.resolve("dist");
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server is running at http://0.0.0.0:${PORT}`);
+    console.log(`Express server is listening on port ${PORT}`);
   });
 }
 
 startServer().catch(err => {
-  console.error("Failed to start server:", err);
+  console.error("FAILED TO BOOT SERVER:", err);
 });

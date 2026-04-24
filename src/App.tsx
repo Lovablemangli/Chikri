@@ -1653,13 +1653,26 @@ export default function App() {
 
     setIsProcessingCheckout(true);
     try {
-      const response = await fetch('/api/create-razorpay-order', {
+      const response = await fetch('/backend/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: orderTotal })
       });
       
-      const razorpayOrder = await response.json();
+      const responseText = await response.text();
+      let razorpayOrder;
+      
+      try {
+        razorpayOrder = JSON.parse(responseText);
+      } catch (e) {
+        console.group("Server Response Error");
+        console.error("Failed to parse JSON. Response was:");
+        console.info(responseText);
+        console.groupEnd();
+        addToast("Payment service reported an error. Please try again.", "info");
+        setIsProcessingCheckout(false);
+        return;
+      }
       
       if (!response.ok) {
         console.error("Payment setup error:", razorpayOrder);

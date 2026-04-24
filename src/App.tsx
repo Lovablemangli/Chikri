@@ -1653,7 +1653,7 @@ export default function App() {
 
     setIsProcessingCheckout(true);
     try {
-      const response = await fetch('/api/create-order', {
+      const response = await fetch('/backend/create-razorpay-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: orderTotal })
@@ -1666,11 +1666,16 @@ export default function App() {
         razorpayOrder = JSON.parse(responseText);
       } catch (e) {
         console.group("Checkout API Error");
-        console.error("Failed to parse JSON response from server.");
-        console.info("Status:", response.status);
-        console.info("Response Body:", responseText);
+        console.error("Failed to parse JSON response from server. Status:", response.status);
+        console.info("Response Type:", response.headers.get('content-type'));
+        console.info("Response Body Snippet:", responseText.substring(0, 500));
         console.groupEnd();
-        addToast("Unable to reach payment service. Please try again.", "info");
+        
+        if (responseText.includes("<!doctype html>") || responseText.includes("<html")) {
+          addToast("Server Configuration Error: API request redirected to home page.", "info");
+        } else {
+          addToast("Payment service unreachable. Please check your connection.", "info");
+        }
         setIsProcessingCheckout(false);
         return;
       }

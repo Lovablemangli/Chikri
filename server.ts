@@ -9,83 +9,85 @@ dotenv.config();
 // ESM compatibility for Razorpay
 const RazorpayConstructor = (Razorpay as any).default || Razorpay;
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  // Middleware for parsing JSON bodies
-  app.use(express.json());
+// Middleware
+app.use(express.json());
 
-  // Global Logger for debugging
-  app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
+// Verbose Logger
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// --- BACKEND API ROUTES ---
+
+// Simple verification endpoint
+app.get("/backend-check", (req, res) => {
+  res.json({ 
+    message: "Server is responsive", 
+    time: new Date().toISOString(),
+    env_keys: {
+      VITE_RAZORPAY_KEY_ID: !!process.env.VITE_RAZORPAY_KEY_ID,
+      RAZORPAY_KEY_SECRET: !!process.env.RAZORPAY_KEY_SECRET
+    }
   });
+});
 
-  // --- API ROUTES ---
+// Razorpay Order Creation
+app.post("/backend/create-razorpay-order", async (req, res) => {
+  console.log("[PAYMENT] Create order request received");
   
-  // Health check
-  app.get("/api/health/ping", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      time: new Date().toISOString(),
-      config: {
-        hasKeyId: !!process.env.VITE_RAZORPAY_KEY_ID,
-        hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET
-      }
+  const keyId = process.env.VITE_RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (!keyId || !keySecret) {
+    console.error("[PAYMENT ERROR] Missing Razorpay credentials");
+    return res.status(500).json({ error: "Razorpay credentials are not configured in Store Secrets." });
+  }
+
+  try {
+    const { amount } = req.body;
+    if (!amount) {
+      console.error("[PAYMENT ERROR] Amount missing from body");
+      return res.status(400).json({ error: "Order amount is required" });
+    }
+
+    const rzp = new RazorpayConstructor({
+      key_id: keyId,
+      key_secret: keySecret
     });
-  });
 
-  // Razorpay Order Creation
-  app.post("/api/create-order", async (req, res) => {
-    console.log("[API] Create order request received");
-    const keyId = process.env.VITE_RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const order = await rzp.orders.create({
+      amount: Math.round(Number(amount) * 100), // convert to paise
+      currency: "INR",
+      receipt: `receipt_${Date.now()}`
+    });
 
-    if (!keyId || !keySecret) {
-      console.error("[API ERROR] Missing Razorpay credentials");
-      return res.status(500).json({ error: "Razorpay credentials are not configured in Store Secrets." });
-    }
+    console.log("[PAYMENT SUCCESS] Created order:", order.id);
+    res.json({ ...order, key_id: keyId });
+  } catch (err: any) {
+    console.error("[PAYMENT ERROR] API failure:", err);
+    res.status(500).json({ error: err.message || "Internal Payment Service Error" });
+  }
+});
 
-    try {
-      const { amount } = req.body;
-      if (!amount) {
-        return res.status(400).json({ error: "Amount is required" });
-      }
+// Explicit API 404 to prevent falling through to HTML index
+app.all("/backend/*", (req, res) => {
+  res.status(404).json({ error: "Backend route not found", path: req.path });
+});
 
-      const rzp = new RazorpayConstructor({
-        key_id: keyId,
-        key_secret: keySecret
-      });
-
-      const order = await rzp.orders.create({
-        amount: Math.round(Number(amount) * 100), // convert to paise
-        currency: "INR",
-        receipt: `receipt_${Date.now()}`
-      });
-
-      console.log("[API SUCCESS] Created order:", order.id);
-      res.json({ ...order, key_id: keyId });
-    } catch (err: any) {
-      console.error("[API ERROR] Razorpay order creation failed:", err);
-      res.status(500).json({ error: err.message || "Internal Server Error" });
-    }
-  });
-
-  // Catch-all for API to prevent falling through to SPA proxy
-  app.all("/api/*", (req, res) => {
-    res.status(404).json({ error: "API Route Not Found" });
-  });
-
-  // --- FRONTEND SERVING ---
-
+async function start() {
   if (process.env.NODE_ENV !== "production") {
+    console.log("Starting server in DEVELOPMENT mode with Vite middleware...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
+    console.log("Starting server in PRODUCTION mode...");
     const distPath = path.resolve("dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
@@ -94,10 +96,10 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Express server running on http://0.0.0.0:${PORT}`);
+    console.log(`>>> Express server is LIVE on http://0.0.0.0:${PORT} <<<`);
   });
 }
 
-startServer().catch(err => {
-  console.error("CRITICAL: Server failed to start:", err);
+start().catch(err => {
+  console.error("FATAL ERROR DURING STARTUP:", err);
 });

@@ -21,36 +21,37 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- BACKEND API ROUTES ---
+// --- API ROUTES ---
 
 // Simple verification endpoint
-app.get("/backend-check", (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({ 
-    message: "Server is responsive", 
+    status: "ok",
+    message: "Payment API is alive", 
     time: new Date().toISOString(),
-    env_keys: {
-      VITE_RAZORPAY_KEY_ID: !!process.env.VITE_RAZORPAY_KEY_ID,
-      RAZORPAY_KEY_SECRET: !!process.env.RAZORPAY_KEY_SECRET
+    env_check: {
+      hasKeyId: !!process.env.VITE_RAZORPAY_KEY_ID,
+      hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET
     }
   });
 });
 
 // Razorpay Order Creation
-app.post("/backend/create-razorpay-order", async (req, res) => {
-  console.log("[PAYMENT] Create order request received");
+app.post("/api/create-razorpay-order", async (req, res) => {
+  console.log(`[${new Date().toISOString()}] PAYMENT: Create order request received`);
   
   const keyId = process.env.VITE_RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
   if (!keyId || !keySecret) {
-    console.error("[PAYMENT ERROR] Missing Razorpay credentials");
+    console.error("[PAYMENT ERROR] Missing Razorpay credentials in environment");
     return res.status(500).json({ error: "Razorpay credentials are not configured in Store Secrets." });
   }
 
   try {
     const { amount } = req.body;
     if (!amount) {
-      console.error("[PAYMENT ERROR] Amount missing from body");
+      console.error("[PAYMENT ERROR] Amount missing from request body");
       return res.status(400).json({ error: "Order amount is required" });
     }
 
@@ -65,17 +66,17 @@ app.post("/backend/create-razorpay-order", async (req, res) => {
       receipt: `receipt_${Date.now()}`
     });
 
-    console.log("[PAYMENT SUCCESS] Created order:", order.id);
+    console.log(`[${new Date().toISOString()}] PAYMENT SUCCESS: Created order ${order.id}`);
     res.json({ ...order, key_id: keyId });
   } catch (err: any) {
-    console.error("[PAYMENT ERROR] API failure:", err);
+    console.error(`[${new Date().toISOString()}] PAYMENT ERROR:`, err);
     res.status(500).json({ error: err.message || "Internal Payment Service Error" });
   }
 });
 
 // Explicit API 404 to prevent falling through to HTML index
-app.all("/backend/*", (req, res) => {
-  res.status(404).json({ error: "Backend route not found", path: req.path });
+app.all("/api/*", (req, res) => {
+  res.status(404).json({ error: "API route not found", path: req.path });
 });
 
 async function start() {

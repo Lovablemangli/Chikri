@@ -1653,7 +1653,7 @@ export default function App() {
 
     setIsProcessingCheckout(true);
     try {
-      const response = await fetch('/api/create-razorpay-order', {
+      const response = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: orderTotal })

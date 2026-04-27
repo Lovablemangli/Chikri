@@ -6,6 +6,8 @@ import Razorpay from "razorpay";
 import dotenv from "dotenv";
 import fs from "fs";
 
+console.log("SERVER.TS LOADING...");
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,55 +17,39 @@ const __dirname = path.dirname(__filename);
 const RazorpayConstructor = (Razorpay as any).default || Razorpay;
 
 async function start() {
+  console.log("STARTING EXPRESS SERVER...");
   const app = express();
   const PORT = 3000;
-
-  // 0. IMMEDIATE API ROUTES (Before ANY middleware)
-  app.get("/ping", (req, res) => {
-    console.log("PING RECEIVED AT ROOT");
-    res.send("PONG - ROOT LEVEL");
-  });
-
-  app.get("/api/health", (req, res) => {
-    console.log("API HEALTH RECEIVED AT ROOT");
-    res.json({ status: "ok", stage: "early" });
-  });
 
   // 1. GLOBAL MIDDLEWARE
   app.use(express.json());
 
-  // 2. VERBOSE LOGGING (Move to top)
   app.use((req, res, next) => {
-    console.log(`[SERVER LOG] ${req.method} ${req.url} - IP: ${req.ip}`);
-    res.setHeader('X-Express-Server', 'Active');
+    console.log(`[REQUEST] ${req.method} ${req.path}`);
     next();
   });
 
-  // 3. API ROUTES
-  
-  // Health check
+  // 2. API ROUTES
   app.get("/api/health", (req, res) => {
-    console.log("MATCH: /api/health");
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      env: process.env.NODE_ENV || 'development'
+      node: process.version,
+      config: {
+        hasRazorpayId: !!process.env.VITE_RAZORPAY_KEY_ID,
+        hasRazorpaySecret: !!process.env.RAZORPAY_KEY_SECRET
+      }
     });
   });
 
-  app.get("/api/ping", (req, res) => {
-    console.log("MATCH: /api/ping");
-    res.send("pong");
-  });
+  app.get("/api/ping", (req, res) => res.send("pong"));
 
   // Razorpay Order
   app.post("/api/create-order", async (req, res) => {
-    console.log("MATCH: /api/create-order - POST");
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.error("Missing credentials in env");
       return res.status(500).json({ error: "Razorpay credentials not configured" });
     }
 
@@ -89,27 +75,24 @@ async function start() {
     }
   });
 
-  // 4. FRONTEND SERVING
-  
+  // 3. FRONTEND SERVING
   if (process.env.NODE_ENV !== "production") {
-    console.log("Vite Mode: Active");
+    console.log("DEVELOPMENT MODE (Vite)");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
+    console.log("PRODUCTION MODE (Static)");
     const distPath = path.join(process.cwd(), "dist");
-    console.log(`Production Mode: Serving from ${distPath}`);
     
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath, { index: false }));
       
       app.get("*", (req, res) => {
-        console.log(`FALLBACK: ${req.url} -> serving index.html`);
-        // Final guard: if it looks like an API call but wasn't caught yet, it's a 404
         if (req.path.startsWith("/api/")) {
-          return res.status(404).json({ error: "API Route Not Found", url: req.url });
+          return res.status(404).json({ error: "API route not found" });
         }
         
         const indexPath = path.join(distPath, "index.html");
@@ -121,7 +104,7 @@ async function start() {
       });
     } else {
       app.get("*", (req, res) => {
-        res.status(503).send("Build in progress, please refresh...");
+        res.status(503).send("Wait for build...");
       });
     }
   }
@@ -132,5 +115,5 @@ async function start() {
 }
 
 start().catch((err) => {
-  console.error("Critical server failure:", err);
+  console.error("CRITICAL SERVER ERROR:", err);
 });

@@ -21,16 +21,15 @@ async function start() {
   const app = express();
   const PORT = 3000;
 
-  // 1. GLOBAL MIDDLEWARE
-  app.use(express.json());
-
+  // 0. LOGGING & DIAGNOSTICS
   app.use((req, res, next) => {
-    console.log(`[REQUEST] ${req.method} ${req.path}`);
+    console.log(`[DEBUG LOG] ${req.method} ${req.url} (Type: ${req.headers['content-type'] || 'none'})`);
     next();
   });
 
-  // 2. API ROUTES
+  // 1. API ROUTES (Before anything else)
   app.get("/api/health", (req, res) => {
+    console.log("HITTING: /api/health");
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
@@ -45,11 +44,13 @@ async function start() {
   app.get("/api/ping", (req, res) => res.send("pong"));
 
   // Razorpay Order
-  app.post("/api/create-order", async (req, res) => {
+  app.post("/api/create-order", express.json(), async (req, res) => {
+    console.log("HITTING: /api/create-order", req.body);
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
+      console.error("Razorpay keys missing!");
       return res.status(500).json({ error: "Razorpay credentials not configured" });
     }
 
@@ -74,6 +75,15 @@ async function start() {
       res.status(500).json({ error: err.message || "Payment gateway error" });
     }
   });
+
+  // API 404 Guard - MUST be before frontend serving to prevent redirection
+  app.all("/api/*", (req, res) => {
+    console.log(`[API 404] ${req.method} ${req.url}`);
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+  });
+
+  // 2. GLOBAL MIDDLEWARE
+  app.use(express.json());
 
   // 3. FRONTEND SERVING
   if (process.env.NODE_ENV !== "production") {

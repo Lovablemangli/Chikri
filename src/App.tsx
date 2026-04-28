@@ -1665,18 +1665,20 @@ export default function App() {
       try {
         razorpayOrder = JSON.parse(responseText);
       } catch (e) {
-        console.group("Checkout API Error Diagnostic");
-        console.error("Failed to parse JSON response from server. Status:", response.status);
-        console.info("Requested URL:", '/api/create-order');
-        console.info("Is Express Server Header Present?:", response.headers.has('X-Express-Server'));
-        console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
-        console.info("Response Body (Full):", responseText);
+        console.group("Checkout API Parse Error");
+        console.error("Status:", response.status);
+        console.info("URL:", response.url);
+        console.info("Redirected:", response.redirected);
+        console.info("Express Server Header:", response.headers.get('X-Express-Server'));
+        console.info("Environment:", response.headers.get('X-Environment'));
+        console.info("Headers:", Object.fromEntries(response.headers.entries()));
+        console.info("Response Snippet:", responseText.substring(0, 500));
         console.groupEnd();
         
         if (responseText.toLowerCase().includes("<!doctype html>") || responseText.toLowerCase().includes("<html")) {
-          addToast("Server Configuration Error: API request redirected to home page. Check Console for details.", "info");
+          addToast("Server Configuration Error: API returned HTML instead of JSON. Check the browser console.", "info");
         } else {
-          addToast("Payment service unreachable or returned invalid data. Check Console.", "info");
+          addToast("API returned invalid data format. Check the browser console for logs.", "info");
         }
         setIsProcessingCheckout(false);
         return;

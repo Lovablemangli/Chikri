@@ -26,17 +26,16 @@ async function start() {
   
   app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
-    console.log(`[SERVER] ${req.method} ${req.url}`);
-    // Identify our server to the client for debugging
-    res.setHeader('X-Express-Server', 'true');
-    res.setHeader('X-Server-Time', timestamp);
+    console.log(`[REQUEST] ${timestamp} ${req.method} ${req.url}`);
+    res.setHeader('X-Express-Server', 'v2');
+    res.setHeader('X-Environment', process.env.NODE_ENV || 'unknown');
     next();
   });
 
-  // 1. API ROUTES
-  const apiRouter = express.Router();
-
-  apiRouter.get("/health", (req, res) => {
+  // 1. API ROUTES (DIRECTLY ON APP)
+  
+  app.get("/api/health", (req, res) => {
+    console.log("-> /api/health hit");
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
@@ -48,16 +47,20 @@ async function start() {
     });
   });
 
-  apiRouter.get("/ping", (req, res) => res.send("pong"));
+  app.get("/api/ping", (req, res) => res.send("pong"));
 
   // Razorpay Order Creation
-  apiRouter.post("/create-order", async (req, res) => {
+  app.post("/api/create-order", async (req, res) => {
+    console.log("-> /api/create-order hit", req.body);
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.error("Razorpay Keys Missing!");
-      return res.status(500).json({ error: "Razorpay credentials not configured on server" });
+      console.error("ERROR: Razorpay Credentials Missing!");
+      return res.status(400).json({ 
+        error: "Razorpay credentials not configured", 
+        details: "Please add VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Settings -> Secrets" 
+      });
     }
 
     try {
@@ -69,26 +72,26 @@ async function start() {
         key_secret: keySecret
       });
 
+      console.log(`Creating order for amount: ${amount}`);
       const order = await rzp.orders.create({
         amount: Math.round(Number(amount) * 100), // convert to paise
         currency: "INR",
         receipt: `receipt_${Date.now()}`
       });
-
-      res.json({ ...order, key_id: keyId });
+      
+      console.log("Order created:", order.id);
+      res.status(201).json({ ...order, key_id: keyId });
     } catch (err: any) {
-      console.error("Razorpay Error:", err);
+      console.error("RAZORPAY ERROR:", err);
       res.status(500).json({ error: err.message || "Failed to create order" });
     }
   });
 
-  app.use("/api", apiRouter);
-
-  // API 404 Guard: Strict JSON response for any unmatched /api route
+  // API 404 Guard: Catch any unmatched /api calls BEFORE the frontend serving
   app.all("/api/*", (req, res) => {
-    console.log(`[API 404 UNMATCHED] ${req.method} ${req.url}`);
+    console.warn(`[API 404] ${req.method} ${req.url}`);
     res.status(404).json({ 
-      error: "API endpoint not found", 
+      error: "Unknown API Endpoint", 
       method: req.method,
       path: req.path
     });

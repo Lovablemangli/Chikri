@@ -1665,16 +1665,17 @@ export default function App() {
       try {
         razorpayOrder = JSON.parse(responseText);
       } catch (e) {
-        console.group("Checkout API Error");
+        console.group("Checkout API Error Diagnostic");
         console.error("Failed to parse JSON response from server. Status:", response.status);
-        console.info("Response Type:", response.headers.get('content-type'));
-        console.info("Response Body Snippet:", responseText.substring(0, 500));
+        console.info("Requested URL:", '/api/create-order');
+        console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
+        console.info("Response Body (Full):", responseText);
         console.groupEnd();
         
-        if (responseText.includes("<!doctype html>") || responseText.includes("<html")) {
-          addToast("Server Configuration Error: API request redirected to home page.", "info");
+        if (responseText.toLowerCase().includes("<!doctype html>") || responseText.toLowerCase().includes("<html")) {
+          addToast("Server Configuration Error: API request redirected to home page. Check Console for details.", "info");
         } else {
-          addToast("Payment service unreachable. Please check your connection.", "info");
+          addToast("Payment service unreachable or returned invalid data. Check Console.", "info");
         }
         setIsProcessingCheckout(false);
         return;

@@ -25,22 +25,24 @@ async function start() {
   app.use(express.json());
   
   app.use((req, res, next) => {
-    console.log(`[SERVER] ${req.method} ${req.url}`);
-    // Add custom header to identify responses from our Express server
-    res.setHeader('X-Powered-By-Express', 'Custom-FullStack');
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${req.method} ${req.url}`);
+    // Identify our server to the client for debugging
+    res.setHeader('X-Express-Server', 'true');
     next();
   });
 
   // 1. API ROUTES (Explicitly defined before any static/fallback)
+  // These MUST return JSON, never HTML.
   
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
       env: process.env.NODE_ENV,
-      razorpay: {
-        id: !!process.env.VITE_RAZORPAY_KEY_ID,
-        secret: !!process.env.RAZORPAY_KEY_SECRET
+      config: {
+        hasRazorpayId: !!process.env.VITE_RAZORPAY_KEY_ID,
+        hasRazorpaySecret: !!process.env.RAZORPAY_KEY_SECRET
       }
     });
   });
@@ -80,35 +82,57 @@ async function start() {
   });
 
   // API 404 Guard: Strict JSON response for any unmatched /api route
+  // This prevents the SPA fallback from accidentally serving index.html for failed API calls
   app.all("/api/*", (req, res) => {
-    res.status(404).json({ error: "API endpoint not found", path: req.path });
+    console.log(`[API 404 UNMATCHED] ${req.method} ${req.url}`);
+    res.status(404).json({ 
+      error: "API endpoint not found", 
+      method: req.method,
+      path: req.path,
+      suggestion: "Check if the route is defined in server.ts"
+    });
   });
 
   // 2. FRONTEND SERVING (Vite or Static)
   if (process.env.NODE_ENV !== "production") {
-    console.log("RUNNING IN DEVELOPMENT MODE");
+    console.log("MODE: DEVELOPMENT (Vite)");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    console.log("RUNNING IN PRODUCTION MODE");
-    const distPath = path.join(process.cwd(), "dist");
+    console.log("MODE: PRODUCTION (Static)");
+    const distPath = path.resolve(process.cwd(), "dist");
     
     // Serve static files
     app.use(express.static(distPath, { index: false }));
     
-    // SPA Fallback
+    // SPA Fallback: Serve index.html for any GET request that isn't a file or API
     app.get("*", (req, res) => {
+      // Final safety check: if it somehow reached here and starts with /api/, it's a 404
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: "API path reached fallback" });
+      }
+      
       const indexPath = path.join(distPath, "index.html");
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
-        res.status(404).send("Application not ready. Please try again in 1 minute.");
+        res.status(404).send("Application assets not found. Please wait for build to complete.");
       }
     });
   }
+
+  // Global Error Handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("SERVER ERROR:", err);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      message: err.message,
+      path: req.path
+    });
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on port ${PORT}`);

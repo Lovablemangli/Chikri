@@ -26,16 +26,17 @@ async function start() {
   
   app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.url}`);
+    console.log(`[SERVER] ${req.method} ${req.url}`);
     // Identify our server to the client for debugging
     res.setHeader('X-Express-Server', 'true');
+    res.setHeader('X-Server-Time', timestamp);
     next();
   });
 
-  // 1. API ROUTES (Explicitly defined before any static/fallback)
-  // These MUST return JSON, never HTML.
-  
-  app.get("/api/health", (req, res) => {
+  // 1. API ROUTES
+  const apiRouter = express.Router();
+
+  apiRouter.get("/health", (req, res) => {
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
@@ -47,10 +48,10 @@ async function start() {
     });
   });
 
-  app.get("/api/ping", (req, res) => res.send("pong"));
+  apiRouter.get("/ping", (req, res) => res.send("pong"));
 
   // Razorpay Order Creation
-  app.post("/api/create-order", async (req, res) => {
+  apiRouter.post("/create-order", async (req, res) => {
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
@@ -81,15 +82,15 @@ async function start() {
     }
   });
 
+  app.use("/api", apiRouter);
+
   // API 404 Guard: Strict JSON response for any unmatched /api route
-  // This prevents the SPA fallback from accidentally serving index.html for failed API calls
   app.all("/api/*", (req, res) => {
     console.log(`[API 404 UNMATCHED] ${req.method} ${req.url}`);
     res.status(404).json({ 
       error: "API endpoint not found", 
       method: req.method,
-      path: req.path,
-      suggestion: "Check if the route is defined in server.ts"
+      path: req.path
     });
   });
 

@@ -1668,6 +1668,7 @@ export default function App() {
         console.group("Checkout API Error Diagnostic");
         console.error("Failed to parse JSON response from server. Status:", response.status);
         console.info("Requested URL:", '/api/create-order');
+        console.info("Is Express Server Header Present?:", response.headers.has('X-Express-Server'));
         console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
         console.info("Response Body (Full):", responseText);
         console.groupEnd();

@@ -21,42 +21,45 @@ async function start() {
   const app = express();
   const PORT = 3000;
 
-  // 0. LOGGING & DIAGNOSTICS
+  // 0. DIAGNOSTICS & GLOBAL MIDDLEWARE
+  app.use(express.json());
+  
   app.use((req, res, next) => {
-    console.log(`[DEBUG LOG] ${req.method} ${req.url} (Type: ${req.headers['content-type'] || 'none'})`);
+    console.log(`[SERVER] ${req.method} ${req.url}`);
+    // Add custom header to identify responses from our Express server
+    res.setHeader('X-Powered-By-Express', 'Custom-FullStack');
     next();
   });
 
-  // 1. API ROUTES (Before anything else)
+  // 1. API ROUTES (Explicitly defined before any static/fallback)
+  
   app.get("/api/health", (req, res) => {
-    console.log("HITTING: /api/health");
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      node: process.version,
-      config: {
-        hasRazorpayId: !!process.env.VITE_RAZORPAY_KEY_ID,
-        hasRazorpaySecret: !!process.env.RAZORPAY_KEY_SECRET
+      env: process.env.NODE_ENV,
+      razorpay: {
+        id: !!process.env.VITE_RAZORPAY_KEY_ID,
+        secret: !!process.env.RAZORPAY_KEY_SECRET
       }
     });
   });
 
   app.get("/api/ping", (req, res) => res.send("pong"));
 
-  // Razorpay Order
-  app.post("/api/create-order", express.json(), async (req, res) => {
-    console.log("HITTING: /api/create-order", req.body);
+  // Razorpay Order Creation
+  app.post("/api/create-order", async (req, res) => {
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.error("Razorpay keys missing!");
-      return res.status(500).json({ error: "Razorpay credentials not configured" });
+      console.error("Razorpay Keys Missing!");
+      return res.status(500).json({ error: "Razorpay credentials not configured on server" });
     }
 
     try {
       const { amount } = req.body;
-      if (!amount) return res.status(400).json({ error: "Amount required" });
+      if (!amount) return res.status(400).json({ error: "Amount is required" });
 
       const rzp = new RazorpayConstructor({
         key_id: keyId,
@@ -64,59 +67,47 @@ async function start() {
       });
 
       const order = await rzp.orders.create({
-        amount: Math.round(Number(amount) * 100),
+        amount: Math.round(Number(amount) * 100), // convert to paise
         currency: "INR",
         receipt: `receipt_${Date.now()}`
       });
 
       res.json({ ...order, key_id: keyId });
     } catch (err: any) {
-      console.error("Razorpay API Error:", err);
-      res.status(500).json({ error: err.message || "Payment gateway error" });
+      console.error("Razorpay Error:", err);
+      res.status(500).json({ error: err.message || "Failed to create order" });
     }
   });
 
-  // API 404 Guard - MUST be before frontend serving to prevent redirection
+  // API 404 Guard: Strict JSON response for any unmatched /api route
   app.all("/api/*", (req, res) => {
-    console.log(`[API 404] ${req.method} ${req.url}`);
-    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+    res.status(404).json({ error: "API endpoint not found", path: req.path });
   });
 
-  // 2. GLOBAL MIDDLEWARE
-  app.use(express.json());
-
-  // 3. FRONTEND SERVING
+  // 2. FRONTEND SERVING (Vite or Static)
   if (process.env.NODE_ENV !== "production") {
-    console.log("DEVELOPMENT MODE (Vite)");
+    console.log("RUNNING IN DEVELOPMENT MODE");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    console.log("PRODUCTION MODE (Static)");
+    console.log("RUNNING IN PRODUCTION MODE");
     const distPath = path.join(process.cwd(), "dist");
     
-    if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath, { index: false }));
-      
-      app.get("*", (req, res) => {
-        if (req.path.startsWith("/api/")) {
-          return res.status(404).json({ error: "API route not found" });
-        }
-        
-        const indexPath = path.join(distPath, "index.html");
-        if (fs.existsSync(indexPath)) {
-          res.sendFile(indexPath);
-        } else {
-          res.status(404).send("Frontend assets not found");
-        }
-      });
-    } else {
-      app.get("*", (req, res) => {
-        res.status(503).send("Wait for build...");
-      });
-    }
+    // Serve static files
+    app.use(express.static(distPath, { index: false }));
+    
+    // SPA Fallback
+    app.get("*", (req, res) => {
+      const indexPath = path.join(distPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send("Application not ready. Please try again in 1 minute.");
+      }
+    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {

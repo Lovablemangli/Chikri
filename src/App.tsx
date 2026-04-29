@@ -1663,6 +1663,15 @@ export default function App() {
       let razorpayOrder;
       
       try {
+        // Quick verification of server presence
+        const healthCheck = await fetch('/health-check').catch(() => null);
+        if (healthCheck) {
+          const healthData = await healthCheck.json().catch(() => null);
+          console.info("Server /health-check status:", healthCheck.status, healthData);
+        } else {
+          console.warn("Server /health-check unreachable");
+        }
+
         razorpayOrder = JSON.parse(responseText);
       } catch (e) {
         console.group("Checkout API Parse Error");

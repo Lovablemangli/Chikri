@@ -23,43 +23,42 @@ async function start() {
 
   // 0. DIAGNOSTICS & GLOBAL MIDDLEWARE
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
   
   app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
     console.log(`[REQUEST] ${timestamp} ${req.method} ${req.url}`);
-    res.setHeader('X-Express-Server', 'v2');
-    res.setHeader('X-Environment', process.env.NODE_ENV || 'unknown');
+    res.setHeader('X-Express-Server', 'v3-prioritized');
+    res.setHeader('X-Environment', process.env.NODE_ENV || 'development');
     next();
   });
 
-  // 1. API ROUTES (DIRECTLY ON APP)
+  // 1. API ROUTES (Directly on app for maximum visibility)
   
   app.get("/api/health", (req, res) => {
-    console.log("-> /api/health hit");
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      env: process.env.NODE_ENV,
-      config: {
-        hasRazorpayId: !!process.env.VITE_RAZORPAY_KEY_ID,
-        hasRazorpaySecret: !!process.env.RAZORPAY_KEY_SECRET
-      }
+      express: true,
+      env: process.env.NODE_ENV || 'development'
     });
   });
 
-  app.get("/api/ping", (req, res) => res.send("pong"));
+  app.get("/health-check", (req, res) => {
+    res.json({ ok: true, msg: "Server is responding directly" });
+  });
 
   // Razorpay Order Creation
   app.post("/api/create-order", async (req, res) => {
-    console.log("-> /api/create-order hit", req.body);
+    console.log("-> Processing /api/create-order", req.body);
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.error("ERROR: Razorpay Credentials Missing!");
+      console.warn("ATTENTION: Razorpay Keys are missing from environment secrets.");
       return res.status(400).json({ 
         error: "Razorpay credentials not configured", 
-        details: "Please add VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Settings -> Secrets" 
+        details: "Go to Settings -> Secrets and add VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET" 
       });
     }
 
@@ -72,29 +71,23 @@ async function start() {
         key_secret: keySecret
       });
 
-      console.log(`Creating order for amount: ${amount}`);
       const order = await rzp.orders.create({
-        amount: Math.round(Number(amount) * 100), // convert to paise
+        amount: Math.round(Number(amount) * 100),
         currency: "INR",
         receipt: `receipt_${Date.now()}`
       });
       
-      console.log("Order created:", order.id);
-      res.status(201).json({ ...order, key_id: keyId });
+      console.log("Successfully created Razorpay order:", order.id);
+      res.status(200).json({ ...order, key_id: keyId });
     } catch (err: any) {
-      console.error("RAZORPAY ERROR:", err);
-      res.status(500).json({ error: err.message || "Failed to create order" });
+      console.error("RAZORPAY API ERROR:", err);
+      res.status(500).json({ error: err.message || "Payment gateway error" });
     }
   });
 
-  // API 404 Guard: Catch any unmatched /api calls BEFORE the frontend serving
+  // API 404 Guard
   app.all("/api/*", (req, res) => {
-    console.warn(`[API 404] ${req.method} ${req.url}`);
-    res.status(404).json({ 
-      error: "Unknown API Endpoint", 
-      method: req.method,
-      path: req.path
-    });
+    res.status(404).json({ error: "API Route Not Found", path: req.path });
   });
 
   // 2. FRONTEND SERVING (Vite or Static)

@@ -1667,28 +1667,29 @@ export default function App() {
         const healthCheck = await fetch('/health-check').catch(() => null);
         if (healthCheck) {
           const healthData = await healthCheck.json().catch(() => null);
-          console.info("Server /health-check status:", healthCheck.status, healthData);
+          console.info("Server /health-check:", {
+            status: healthCheck.status,
+            data: healthData,
+            headers: Object.fromEntries(healthCheck.headers.entries())
+          });
         } else {
-          console.warn("Server /health-check unreachable");
+          console.warn("Server /health-check completely unreachable");
         }
 
         razorpayOrder = JSON.parse(responseText);
       } catch (e) {
-        console.group("Checkout API Parse Error");
+        console.group("Checkout API Configuration Error");
         console.error("Status:", response.status);
         console.info("URL:", response.url);
-        console.info("Redirected:", response.redirected);
         console.info("Express Server Header:", response.headers.get('X-Express-Server'));
-        console.info("Environment:", response.headers.get('X-Environment'));
+        console.info("Debug Env Header:", response.headers.get('X-Debug-Node-Env'));
         console.info("Headers:", Object.fromEntries(response.headers.entries()));
         console.info("Response Snippet:", responseText.substring(0, 500));
         console.groupEnd();
         
-        if (responseText.toLowerCase().includes("<!doctype html>") || responseText.toLowerCase().includes("<html")) {
-          addToast("Server Configuration Error: API returned HTML instead of JSON. Check the browser console.", "info");
-        } else {
-          addToast("API returned invalid data format. Check the browser console for logs.", "info");
-        }
+        const isHtml = responseText.toLowerCase().includes("<!doctype html>") || responseText.toLowerCase().includes("<html");
+        addToast(isHtml ? "Server Configuration Error: API returned HTML instead of JSON. Check the browser console." : "API returned invalid data format. Check the browser console.", "info");
+        
         setIsProcessingCheckout(false);
         return;
       }

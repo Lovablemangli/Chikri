@@ -10,24 +10,33 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function start() {
-  console.log("SERVER INITIALIZING...");
-  const app = express();
-  const PORT = 3000;
+console.log(">>> SERVER.TS ENTRY POINT REACHED <<<");
 
-  // 0. DIAGNOSTICS & GLOBAL MIDDLEWARE
+async function start() {
+  console.log(">>> STARTING EXPRESS INITIALIZATION <<<");
+  const app = express();
+  const PORT = process.env.PORT || 3000;
+
+  // 0. HEALTH CHECK (Absolute Priority)
+  app.get("/health-check", (req, res) => {
+    console.log(">>> RECEIVED /health-check REQUEST <<<");
+    res.json({ 
+      ok: true, 
+      msg: "Server is alive and responding", 
+      timestamp: new Date().toISOString(),
+      node: process.version,
+      pid: process.pid
+    });
+  });
+
+  // 1. DIAGNOSTICS & GLOBAL MIDDLEWARE
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   
-  // Health check at the very top, before any other middleware or routing logic
-  app.get("/health-check", (req, res) => {
-    res.json({ ok: true, msg: "Server is alive", timestamp: new Date().toISOString() });
-  });
-
   app.use((req, res, next) => {
     // Set diagnostic headers on ALL responses
-    res.setHeader('X-Express-Server', 'v5-stable');
-    res.setHeader('X-Debug-Node-Env', process.env.NODE_ENV || 'development');
+    res.setHeader('X-Express-Server', 'v6-diagnostic');
+    res.setHeader('X-Debug-Node-Env', process.env.NODE_ENV || 'unset');
     next();
   });
 

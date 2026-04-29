@@ -1,23 +1,17 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import Razorpay from "razorpay";
 import dotenv from "dotenv";
 import fs from "fs";
 
-console.log("SERVER.TS LOADING... NODE_ENV:", process.env.NODE_ENV);
-
+// Load environment variables
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ESM compatibility for Razorpay
-const RazorpayConstructor = (Razorpay as any).default || Razorpay;
-
 async function start() {
-  console.log("STARTING EXPRESS SERVER...");
+  console.log("SERVER INITIALIZING...");
   const app = express();
   const PORT = 3000;
 
@@ -25,52 +19,51 @@ async function start() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   
+  // Health check at the very top, before any other middleware or routing logic
+  app.get("/health-check", (req, res) => {
+    res.json({ ok: true, msg: "Server is alive", timestamp: new Date().toISOString() });
+  });
+
   app.use((req, res, next) => {
-    const timestamp = new Date().toISOString();
-    console.log(`[REQUEST LOG] ${timestamp} ${req.method} ${req.url}`);
-    res.setHeader('X-Express-Server', 'v4-diagnostic');
-    res.setHeader('X-Debug-Environment', process.env.NODE_ENV || 'unset');
+    // Set diagnostic headers on ALL responses
+    res.setHeader('X-Express-Server', 'v5-stable');
+    res.setHeader('X-Debug-Node-Env', process.env.NODE_ENV || 'development');
     next();
   });
 
-  // 1. API ROUTES (Directly on app for maximum visibility)
-  
-  app.get("/api/health", (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
+  // 1. API ROUTES
+  const apiRouter = express.Router();
+
+  apiRouter.get("/health", (req, res) => {
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      express: true,
       env: process.env.NODE_ENV || 'development',
-      version: 'v4'
+      hasRazorpay: !!(process.env.VITE_RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
     });
   });
 
-  app.get("/health-check", (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.json({ ok: true, msg: "Server is responding directly", version: 'v4' });
-  });
-
-  // Razorpay Order Creation
-  app.post("/api/create-order", async (req, res) => {
-    console.log("-> Processing /api/create-order", req.body);
-    res.setHeader('Content-Type', 'application/json');
-    
+  apiRouter.post("/create-order", async (req, res) => {
+    console.log("-> API: create-order request received");
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.warn("ATTENTION: Razorpay Keys are missing from environment secrets.");
+      console.error("CRITICAL: Razorpay credentials missing");
       return res.status(400).json({ 
         error: "Razorpay credentials not configured", 
-        details: "Go to Settings -> Secrets and add VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET" 
+        details: "Check your Environment Secrets/Variables" 
       });
     }
 
     try {
       const { amount } = req.body;
-      if (!amount) return res.status(400).json({ error: "Amount is required" });
+      if (!amount) return res.status(400).json({ error: "Amount required" });
 
+      // Dynamic import to avoid CJS/ESM issues at top level
+      const { default: Razorpay } = await import("razorpay");
+      const RazorpayConstructor = (Razorpay as any).default || Razorpay;
+      
       const rzp = new RazorpayConstructor({
         key_id: keyId,
         key_secret: keySecret
@@ -82,65 +75,57 @@ async function start() {
         receipt: `receipt_${Date.now()}`
       });
       
-      console.log("Successfully created Razorpay order:", order.id);
+      console.log("-> Order created:", order.id);
       res.status(200).json({ ...order, key_id: keyId });
     } catch (err: any) {
-      console.error("RAZORPAY API ERROR:", err);
-      res.status(500).json({ error: err.message || "Payment gateway error" });
+      console.error("RAZORPAY ERR:", err);
+      res.status(500).json({ error: err.message || "Gateway Error" });
     }
   });
 
-  // API 404 Guard
-  app.all("/api/*", (req, res) => {
-    res.status(404).json({ error: "API Route Not Found", path: req.path });
-  });
+  // Mount API
+  app.use("/api", apiRouter);
 
-  // 2. FRONTEND SERVING (Vite or Static)
+  // 2. FRONTEND SERVING
   if (process.env.NODE_ENV !== "production") {
-    console.log("MODE: DEVELOPMENT (Vite)");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    console.log("STARTING VITE MIDDLEWARE (Dev Mode)");
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.error("Failed to initialize Vite middleware:", viteErr);
+    }
   } else {
-    console.log("MODE: PRODUCTION (Static)");
+    console.log("STARTING STATIC SERVING (Prod Mode)");
     const distPath = path.resolve(process.cwd(), "dist");
     
-    // Serve static files
     app.use(express.static(distPath, { index: false }));
     
-    // SPA Fallback: Serve index.html for any GET request that isn't a file or API
     app.get("*", (req, res) => {
-      // Final safety check: if it somehow reached here and starts with /api/, it's a 404
+      // Don't fallback for missed API routes
       if (req.path.startsWith('/api/')) {
-        return res.status(404).json({ error: "API path reached fallback" });
+        return res.status(404).json({ error: "API route not found" });
       }
       
       const indexPath = path.join(distPath, "index.html");
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
-        res.status(404).send("Application assets not found. Please wait for build to complete.");
+        res.status(404).send("Build production files first.");
       }
     });
   }
 
-  // Global Error Handler
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error("SERVER ERROR:", err);
-    res.status(500).json({ 
-      error: "Internal Server Error", 
-      message: err.message,
-      path: req.path
-    });
-  });
-
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server listening on port ${PORT}`);
+    console.log(`>>> Express server running on port ${PORT}`);
   });
 }
 
-start().catch((err) => {
-  console.error("CRITICAL SERVER ERROR:", err);
+start().catch(err => {
+  console.error("FAILED TO START SERVER:", err);
+  process.exit(1);
 });

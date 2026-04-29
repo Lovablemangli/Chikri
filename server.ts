@@ -6,7 +6,7 @@ import Razorpay from "razorpay";
 import dotenv from "dotenv";
 import fs from "fs";
 
-console.log("SERVER.TS LOADING...");
+console.log("SERVER.TS LOADING... NODE_ENV:", process.env.NODE_ENV);
 
 dotenv.config();
 
@@ -27,30 +27,35 @@ async function start() {
   
   app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
-    console.log(`[REQUEST] ${timestamp} ${req.method} ${req.url}`);
-    res.setHeader('X-Express-Server', 'v3-prioritized');
-    res.setHeader('X-Environment', process.env.NODE_ENV || 'development');
+    console.log(`[REQUEST LOG] ${timestamp} ${req.method} ${req.url}`);
+    res.setHeader('X-Express-Server', 'v4-diagnostic');
+    res.setHeader('X-Debug-Environment', process.env.NODE_ENV || 'unset');
     next();
   });
 
   // 1. API ROUTES (Directly on app for maximum visibility)
   
   app.get("/api/health", (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
       express: true,
-      env: process.env.NODE_ENV || 'development'
+      env: process.env.NODE_ENV || 'development',
+      version: 'v4'
     });
   });
 
   app.get("/health-check", (req, res) => {
-    res.json({ ok: true, msg: "Server is responding directly" });
+    res.setHeader('Content-Type', 'application/json');
+    res.json({ ok: true, msg: "Server is responding directly", version: 'v4' });
   });
 
   // Razorpay Order Creation
   app.post("/api/create-order", async (req, res) => {
     console.log("-> Processing /api/create-order", req.body);
+    res.setHeader('Content-Type', 'application/json');
+    
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 

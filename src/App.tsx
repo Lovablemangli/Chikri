@@ -1789,6 +1789,94 @@ export default function App() {
     }
   };
 
+  const [pincode, setPincode] = useState('');
+  const [isPincodeVerified, setIsPincodeVerified] = useState(() => {
+    return localStorage.getItem('verified_pincode') === '505001';
+  });
+  const [pincodeError, setPincodeError] = useState(false);
+
+  const handlePincodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pincode === '505001') {
+      setIsPincodeVerified(true);
+      localStorage.setItem('verified_pincode', '505001');
+      addToast('Welcome! We deliver to your area.', 'success');
+    } else {
+      setPincodeError(true);
+    }
+  };
+
+  if (!isPincodeVerified) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-8 md:p-12 rounded-[40px] shadow-2xl max-w-md w-full border border-slate-100"
+        >
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-6 text-emerald-600">
+              <MapPin size={40} />
+            </div>
+            <h2 className="text-3xl font-black text-slate-900 mb-3 leading-tight">Check Delivery Availability</h2>
+            <p className="text-slate-500 font-medium leading-relaxed">
+              Please enter your area PIN code to proceed to the store.
+            </p>
+          </div>
+
+          <form onSubmit={handlePincodeSubmit} className="space-y-6">
+            <div className="relative group">
+              <input
+                type="text"
+                placeholder="Enter 6-digit PIN code"
+                value={pincode}
+                onChange={(e) => {
+                  setPincode(e.target.value);
+                  setPincodeError(false);
+                }}
+                maxLength={6}
+                className={`w-full px-8 py-5 h-20 bg-slate-50 rounded-2xl border-2 transition-all outline-none font-bold text-2xl text-center tracking-[0.5em] placeholder:tracking-normal placeholder:text-slate-300 ${
+                  pincodeError ? 'border-red-400 bg-red-50 text-red-900' : 'border-slate-100 focus:border-emerald-500 group-hover:border-slate-200'
+                }`}
+              />
+              <AnimatePresence>
+                {pincodeError && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4 p-4 bg-red-100 text-red-700 rounded-xl flex items-start gap-3"
+                  >
+                    <X size={20} className="shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-sm leading-tight">Delivery Unvailable</p>
+                      <p className="text-xs font-semibold opacity-80 mt-1">
+                        Currently, we only deliver to PIN code 505001. Other locations coming soon!
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <button
+              type="submit"
+              disabled={pincode.length < 6}
+              className="w-full h-16 bg-slate-900 hover:bg-emerald-600 disabled:bg-slate-200 disabled:cursor-not-allowed text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl shadow-emerald-900/10"
+            >
+              Verify & Enter Shop
+            </button>
+          </form>
+
+          <p className="mt-8 text-center text-slate-400 text-sm font-bold">
+            Only serving 505001 for now.
+          </p>
+        </motion.div>
+        <ToastContainer toasts={toasts} removeToast={(id) => setToasts(t => t.filter(x => x.id !== id))} />
+      </div>
+    );
+  }
+
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (

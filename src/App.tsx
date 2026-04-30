@@ -1664,31 +1664,33 @@ export default function App() {
       
       try {
         // Quick verification of server presence
-        const healthCheck = await fetch('/health-check').catch(() => null);
+        const healthCheck = await fetch('/api/health').catch(() => null);
         if (healthCheck) {
           const healthData = await healthCheck.json().catch(() => null);
-          console.info("Server /health-check:", {
-            status: healthCheck.status,
-            data: healthData,
-            headers: Object.fromEntries(healthCheck.headers.entries())
-          });
-        } else {
-          console.warn("Server /health-check completely unreachable");
+          console.group("Server Diagnostic Check");
+          console.info("Status:", healthCheck.status);
+          console.info("Data:", healthData);
+          console.info("Headers:", Object.fromEntries(healthCheck.headers.entries()));
+          console.groupEnd();
         }
 
         razorpayOrder = JSON.parse(responseText);
       } catch (e) {
-        console.group("Checkout API Configuration Error");
-        console.error("Status:", response.status);
-        console.info("URL:", response.url);
-        console.info("Express Server Header:", response.headers.get('X-Express-Server'));
-        console.info("Debug Env Header:", response.headers.get('X-Debug-Node-Env'));
-        console.info("Headers:", Object.fromEntries(response.headers.entries()));
-        console.info("Response Snippet:", responseText.substring(0, 500));
+        console.group("Checkout API Configuration Error (Detailed)");
+        console.error("Status Code:", response.status);
+        console.info("Full URL:", response.url);
+        console.info("X-Express-Server Header:", response.headers.get('X-Express-Server'));
+        console.info("All Headers:", Object.fromEntries(response.headers.entries()));
+        console.info("First 200 chars of response:", responseText.substring(0, 200));
         console.groupEnd();
         
         const isHtml = responseText.toLowerCase().includes("<!doctype html>") || responseText.toLowerCase().includes("<html");
-        addToast(isHtml ? "Server Configuration Error: API returned HTML instead of JSON. Check the browser console." : "API returned invalid data format. Check the browser console.", "info");
+        
+        if (isHtml) {
+          addToast("Server Configuration Error: The request hit a static page instead of the API. This usually happens when the Domain Mapping isn't pointing to the Cloud Run service.", "info");
+        } else {
+          addToast(`API returned invalid data (Status: ${response.status}). Check developer console.`, "info");
+        }
         
         setIsProcessingCheckout(false);
         return;

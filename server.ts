@@ -34,8 +34,10 @@ async function start() {
   app.use(express.urlencoded({ extended: true }));
   
   app.use((req, res, next) => {
+    // Log every request that hits the server
+    console.log(`[SERVER] ${req.method} ${req.path} - ${new Date().toISOString()}`);
     // Set diagnostic headers on ALL responses
-    res.setHeader('X-Express-Server', 'v6-diagnostic');
+    res.setHeader('X-Express-Server', 'v7-diagnostic');
     res.setHeader('X-Debug-Node-Env', process.env.NODE_ENV || 'unset');
     next();
   });
@@ -44,6 +46,7 @@ async function start() {
   const apiRouter = express.Router();
 
   apiRouter.get("/health", (req, res) => {
+    console.log("-> API: health check");
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
@@ -54,12 +57,14 @@ async function start() {
 
   apiRouter.post("/create-order", async (req, res) => {
     console.log("-> API: create-order request received");
+    console.log("-> Body:", JSON.stringify(req.body));
+    
     const keyId = process.env.VITE_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
       console.error("CRITICAL: Razorpay credentials missing");
-      return res.status(400).json({ 
+      return res.status(500).json({ 
         error: "Razorpay credentials not configured", 
         details: "Check your Environment Secrets/Variables" 
       });
@@ -67,29 +72,48 @@ async function start() {
 
     try {
       const { amount } = req.body;
-      if (!amount) return res.status(400).json({ error: "Amount required" });
+      if (!amount) {
+        console.warn("-> Missing amount in request");
+        return res.status(400).json({ error: "Amount required" });
+      }
 
-      // Dynamic import to avoid CJS/ESM issues at top level
+      console.log("-> Initializing Razorpay with amount:", amount);
+      // Dynamic import for Razorpay
       const { default: Razorpay } = await import("razorpay");
-      const RazorpayConstructor = (Razorpay as any).default || Razorpay;
       
-      const rzp = new RazorpayConstructor({
+      // Handle the constructor correctly for commonjs/esm interop
+      const RZP = (Razorpay as any).default || Razorpay;
+      const rzp = new RZP({
         key_id: keyId,
         key_secret: keySecret
       });
 
+      console.log("-> Creating Razorpay order...");
       const order = await rzp.orders.create({
         amount: Math.round(Number(amount) * 100),
         currency: "INR",
         receipt: `receipt_${Date.now()}`
       });
       
-      console.log("-> Order created:", order.id);
+      console.log("-> Order successfully created:", order.id);
       res.status(200).json({ ...order, key_id: keyId });
     } catch (err: any) {
-      console.error("RAZORPAY ERR:", err);
-      res.status(500).json({ error: err.message || "Gateway Error" });
+      console.error("RAZORPAY ERROR DETAILS:", err);
+      res.status(500).json({ 
+        error: err.message || "Gateway Error",
+        details: err.description || "Check gateway integration"
+      });
     }
+  });
+
+  // Add a catch-all for /api routes to prevent HTML fallback for missed API endpoints
+  apiRouter.all("*", (req, res) => {
+    console.warn(`[WARN] Missed API Endpoint: ${req.method} ${req.path}`);
+    res.status(404).json({ 
+      error: "API Endpoint not found", 
+      method: req.method, 
+      path: req.path 
+    });
   });
 
   // Mount API
@@ -115,7 +139,7 @@ async function start() {
     app.use(express.static(distPath, { index: false }));
     
     app.get("*", (req, res) => {
-      // Don't fallback for missed API routes
+      // Safety check for missed API routes in GET fallback (though apiRouter should catch them)
       if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: "API route not found" });
       }
